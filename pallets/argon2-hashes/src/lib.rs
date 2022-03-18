@@ -58,14 +58,18 @@ pub mod pallet {
 	#[pallet::getter(fn something)]
 
 
-	pub type Something<T> = StorageValue<_, u32>;
-
+	pub type HashData<T> =  StorageMap<
+		_,
+		Twox64Concat,
+		T::Hash,
+		(u64, String),
+	>;
 	
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 	
-		SomethingStored(u32, T::AccountId),
+		Success(u32, T::AccountId),
 	}
 
 	#[pallet::error]
@@ -76,7 +80,36 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-
+		pub fn hash_pass(
+			owner: &T::AccountId,
+			password: Option<&str>,
+			salt: Option<&str>,
+		) -> Result<T::Hash, Error<T>> {
+			let kitty = Kitty::<T> {
+				dna: dna.unwrap_or_else(Self::gen_dna),
+				price: None,
+				gender: gender.unwrap_or_else(Self::gen_gender),
+				owner: owner.clone(),
+			};
+		
+			let kitty_id = T::Hashing::hash_of(&kitty);
+		
+			// Performs this operation first as it may fail
+			let new_cnt = Self::kitty_cnt().checked_add(1)
+				.ok_or(<Error<T>>::KittyCntOverflow)?;
+		
+			// Check if the kitty does not already exist in our storage map
+			ensure!(Self::kitties(&kitty_id) == None, <Error<T>>::KittyExists);
+		
+			// Performs this operation first because as it may fail
+			<KittiesOwned<T>>::try_mutate(&owner, |kitty_vec| {
+				kitty_vec.try_push(kitty_id)
+			}).map_err(|_| <Error<T>>::ExceedMaxKittyOwned)?;
+		
+			<Kitties<T>>::insert(kitty_id, kitty);
+			<KittyCnt<T>>::put(new_cnt);
+			Ok(kitty_id)
+		}
 
 	
 	}
