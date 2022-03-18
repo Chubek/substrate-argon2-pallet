@@ -16,7 +16,7 @@ pub mod argon2_hash {
 	}
 	
 
-	pub fn hash_pass(pass: &str, salt: &str) -> (u64, String) {
+	pub fn hash_pwd(pass: &str, salt: &str) -> (u64, String) {
 		let config = Config::default();
 		let mut rng = rand::thread_rng();
 
@@ -43,6 +43,15 @@ pub mod argon2_hash {
 pub mod pallet {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
+	use std::time::{SystemTime};
+
+	#[derive(Clone, Encode, Decode, PartialEq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
+	#[scale_info(skip_type_params(T))]
+	#[codec(mel_bound())]
+	struct PassHash {
+		id: u64,
+		hash: String
+	}
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
@@ -62,20 +71,25 @@ pub mod pallet {
 		_,
 		Twox64Concat,
 		T::Hash,
-		(u64, String),
+		PassHash,
 	>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn hash_cnt)]
+	pub(super) type HashCnt<T: Config> = StorageValue<_, u64, ValueQuery>;
 	
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 	
-		Success(u32, T::AccountId),
+		Success(T::Time, T::Day),
 	}
 
 	#[pallet::error]
 	pub enum Error<T> {
 		NoneValue,
-		StorageOverflow,
+		HashPwdOverflow,
+		HashPwdExists
 	}
 
 	#[pallet::call]
@@ -85,30 +99,26 @@ pub mod pallet {
 			password: Option<&str>,
 			salt: Option<&str>,
 		) -> Result<T::Hash, Error<T>> {
-			let kitty = Kitty::<T> {
-				dna: dna.unwrap_or_else(Self::gen_dna),
-				price: None,
-				gender: gender.unwrap_or_else(Self::gen_gender),
-				owner: owner.clone(),
+			let (hash_id, hash_string) = argon2_hash::hash_pwd(password, salt);
+
+
+			let p = PassHash::<T> {
+				id: hash_id,
+				hash: hash_string
 			};
 		
-			let kitty_id = T::Hashing::hash_of(&kitty);
+			let hpwd_id = T::Hashing::hash_of(&p);
 		
-			// Performs this operation first as it may fail
-			let new_cnt = Self::kitty_cnt().checked_add(1)
-				.ok_or(<Error<T>>::KittyCntOverflow)?;
+			let new_cnt = Self::hash_cnt().checked_add(1)
+				.ok_or(<Error<T>>::HashPwdOverflow)?;
 		
-			// Check if the kitty does not already exist in our storage map
-			ensure!(Self::kitties(&kitty_id) == None, <Error<T>>::KittyExists);
+			ensure!(Self::kitties(&hpwd_id) == None, <Error<T>>::HashPwdExists);
 		
-			// Performs this operation first because as it may fail
-			<KittiesOwned<T>>::try_mutate(&owner, |kitty_vec| {
-				kitty_vec.try_push(kitty_id)
-			}).map_err(|_| <Error<T>>::ExceedMaxKittyOwned)?;
+			Self::deposit_event(Event::Success(SystemTime::now(), 0));
 		
-			<Kitties<T>>::insert(kitty_id, kitty);
+			<Kitties<T>>::insert(hpwd_id, p);
 			<KittyCnt<T>>::put(new_cnt);
-			Ok(kitty_id)
+			Ok(hpwd_i)
 		}
 
 	
