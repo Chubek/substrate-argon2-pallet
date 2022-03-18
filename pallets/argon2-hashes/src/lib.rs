@@ -112,12 +112,11 @@ pub mod pallet {
 			let new_cnt = Self::hash_cnt().checked_add(1)
 				.ok_or(<Error<T>>::HashPwdOverflow)?;
 		
-			ensure!(Self::kitties(&hpwd_id) == None, <Error<T>>::HashPwdExists);
-		
+	
 			Self::deposit_event(Event::Success(SystemTime::now(), 0));
 		
-			<Kitties<T>>::insert(hpwd_id, p);
-			<KittyCnt<T>>::put(new_cnt);
+			<HashData<T>>::insert(hpwd_id, p);
+			<HashCnt<T>>::put(new_cnt);
 			Ok(hpwd_i)
 		}
 
