@@ -1,0 +1,8 @@
+[workspace]
+members = [
+    'node',
+    'pallets/argon2-hashes',
+    'runtime',
+]
+[profile.release]
+panic = "unwind"
