@@ -19,11 +19,12 @@ codec = { package = "parity-scale-codec", version = "2.0.0", default-features = 
 time = "0.1"
 rust-argon2 = "1.0"
 fasthash = "0.4.0"
-rand = "0.8.5"
 scale-info = { version = "1.0", default-features = false, features = ["derive"] }
 frame-support = { default-features = false, version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.17"}
 frame-system = { default-features = false, version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.17" }
 frame-benchmarking = { default-features = false, version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.17", optional = true }
+sp-io = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.17" }
+serde = { version = "1.0", features = ["derive"] }
 
 [dev-dependencies]
 sp-core = { default-features = false, version = "5.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.17" }

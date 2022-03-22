@@ -2,55 +2,26 @@
 
 pub use pallet::*;
 
-
-pub mod argon2_hash {
-	use argon2::{self, Config};
-	use std::hash::{Hash, Hasher};
-	use fasthash::{metro, MetroHasher};
-	use rand::Rng;
-
-	fn hash_func_id<T: Hash>(t: &T) -> u64 {
-		let mut s: MetroHasher = Default::default();
-		t.hash(&mut s);
-		s.finish()
-	}
-	
-
-	pub fn hash_pwd(pass: &str, salt: &str) -> (u64, String) {
-		let config = Config::default();
-		let mut rng = rand::thread_rng();
-
-		let hash = argon2::hash_encoded(pass.as_bytes(), salt.as_bytes(), &config).unwrap();
-
-		let rand_val: u16 = rng.gen();
-
-		let id_hash = hash_func_id(format!("{} {} {}", pass, hash, rand_val));
-
-		return (id_hash, hash)
-
-
-	}
-
-	pub fn verify_pass(hash: String, password: &str) -> bool {
-		return argon2::verify_encoded(&hash, password.as_bytes()).unwrap()
-	}
-
-}
-
+mod argon2_hash;
 
 
 #[frame_support::pallet]
 pub mod pallet {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
-	use std::time::{SystemTime};
+	use crate::argon2_hash;
+	use frame_support::sp_runtime::traits::Hash;
+	use scale_info::TypeInfo;
 
+	type AccountOf<T> = <T as frame_system::Config>::AccountId;
+	
 	#[derive(Clone, Encode, Decode, PartialEq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
 	#[scale_info(skip_type_params(T))]
 	#[codec(mel_bound())]
-	struct PassHash {
-		id: u64,
-		hash: String
+	pub struct PassHash<T: Config> {
+		pub id: u64,
+		pub hash: [u8; 64],
+		pub owner: AccountOf<T>
 	}
 
 	#[pallet::config]
@@ -64,14 +35,12 @@ pub mod pallet {
 
 
 	#[pallet::storage]
-	#[pallet::getter(fn something)]
-
-
-	pub type HashData<T> =  StorageMap<
+	#[pallet::getter(fn hashdata)]
+	pub type HashData<T: Config> =  StorageMap<
 		_,
 		Twox64Concat,
 		T::Hash,
-		PassHash,
+		PassHash<T>,
 	>;
 
 	#[pallet::storage]
@@ -82,44 +51,48 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 	
-		Success(T::Time, T::Day),
+		Success(T::Hash, u64),
 	}
 
 	#[pallet::error]
 	pub enum Error<T> {
 		NoneValue,
 		HashPwdOverflow,
-		HashPwdExists
 	}
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		pub fn hash_pass(
-			owner: &T::AccountId,
-			password: Option<&str>,
-			salt: Option<&str>,
-		) -> Result<T::Hash, Error<T>> {
-			let (hash_id, hash_string) = argon2_hash::hash_pwd(password, salt);
+		#[pallet::weight(1)]
+		pub fn add_to_chain(
+			origin: OriginFor<T>,
+			password: String,
+			salt: String
+		) -> DispatchResult {
+			let owner_id = ensure_signed(origin)?;
 
+
+
+			let (hash_id, hash_string) = argon2_hash::hash_pwd(password.as_str(), salt.as_str());
+
+			let hash_array: [u8; 64] = hash_string.as_bytes().try_into().unwrap();
 
 			let p = PassHash::<T> {
 				id: hash_id,
-				hash: hash_string
+				hash: hash_array,
+				owner: owner_id
 			};
 		
 			let hpwd_id = T::Hashing::hash_of(&p);
 		
 			let new_cnt = Self::hash_cnt().checked_add(1)
 				.ok_or(<Error<T>>::HashPwdOverflow)?;
-		
-	
-			Self::deposit_event(Event::Success(SystemTime::now(), 0));
-		
 			<HashData<T>>::insert(hpwd_id, p);
 			<HashCnt<T>>::put(new_cnt);
-			Ok(hpwd_i)
-		}
+	
+			Self::deposit_event(Event::Success(hpwd_id , new_cnt));
 
+			Ok(())
+		}
 	
 	}
 }
